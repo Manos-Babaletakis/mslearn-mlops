@@ -1,56 +1,33 @@
+name: Manually trigger an Azure Machine Learning job
+
+on:
+  workflow_dispatch:
+
 jobs:
   train:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check out repo
-      uses: actions/checkout@main
+      - name: Check out repo
+        uses: actions/checkout@main
 
-    - name: Install az ml extension
-      run: az extension add -n ml -y
+      - name: Install az ml extension
+        run: |
+          az extension add -n ml -y
+          az version
+          az extension show -n ml
 
-    - name: Azure login
-      uses: azure/login@v2
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Submit Azure Machine Learning training job
-      id: submit_job
-      run: |
-        JOB_NAME=$(az ml job create \
-          -f src/job.yml \
-          --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-          --workspace-name ${{ vars.AZURE_WORKSPACE_NAME }} \
-          --query name \
-          -o tsv)
+      - name: Verify Azure account
+        run: az account show
 
-        echo "job_name=$JOB_NAME" >> "$GITHUB_OUTPUT"
-        echo "Submitted Azure ML job: $JOB_NAME"
-
-    - name: Wait for Azure Machine Learning job
-      run: |
-        JOB_NAME="${{ steps.submit_job.outputs.job_name }}"
-
-        while true; do
-          STATUS=$(az ml job show \
-            --name "$JOB_NAME" \
+      - name: Submit Azure Machine Learning training job
+        run: |
+          az ml job create \
+            -f src/job.yml \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --workspace-name ${{ vars.AZURE_WORKSPACE_NAME }} \
-            --query status \
-            -o tsv)
-
-          echo "Azure ML job status: $STATUS"
-
-          case "$STATUS" in
-            Completed)
-              echo "Training completed successfully."
-              exit 0
-              ;;
-            Failed|Canceled|NotResponding)
-              echo "Training ended with status: $STATUS"
-              exit 1
-              ;;
-          esac
-
-          sleep 30
-        done
+            --workspace-name ${{ vars.AZURE_WORKSPACE_NAME }}
